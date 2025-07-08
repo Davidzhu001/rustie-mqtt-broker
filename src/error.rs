@@ -8,10 +8,10 @@ pub enum MqttError {
     Protocol(String),
     #[error("Authentication failed")]
     AuthFailed,
-    #[error("WebSocket error: {0}")]
-    WebSocket(#[from] tokio_tungstenite::tungstenite::Error),
     #[error("Task join error: {0}")]
     Join(#[from] tokio::task::JoinError),
     #[error("Hook error: {0}")]
     Hook(String),
+    #[error("Packet too large: {0}")]
+    PacketTooLarge(String),
 }
