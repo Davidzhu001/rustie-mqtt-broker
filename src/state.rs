@@ -145,6 +145,8 @@ impl BrokerState {
     /// Publishes a message to all subscribers of a topic.
     pub async fn publish(&mut self, topic: String, payload: Bytes, version: ProtocolVersion) -> Result<(), MqttError> {
         let subscribers = self.get_subscribers(&topic);
+        let mut disconnected_clients = Vec::new();
+
         for sub_id in subscribers {
             if let Some(hook) = self.publish_hook.as_ref() {
                 if let Err(e) = hook(&topic, &payload, version) {
@@ -160,8 +162,15 @@ impl BrokerState {
                     payload.clone().to_vec(),
                 ]
                 .concat();
-                write_stream.write_all(&publish_packet).await?;
-                write_stream.flush().await?;
+                if let Err(e) = write_stream.write_all(&publish_packet).await {
+                    tracing::error!("Failed to send PUBLISH to TCP client {}: {}", sub_id, e);
+                    disconnected_clients.push(sub_id.clone());
+                    continue;
+                }
+                if let Err(e) = write_stream.flush().await {
+                    tracing::error!("Failed to flush PUBLISH to TCP client {}: {}", sub_id, e);
+                    disconnected_clients.push(sub_id.clone());
+                }
             }
             if let Some(client) = self.ws_clients.get_mut(&sub_id) {
                 let mut ws_stream = client.ws_stream.lock().await;
@@ -171,9 +180,18 @@ impl BrokerState {
                     payload.clone().to_vec(),
                 ]
                 .concat();
-                ws_stream.send(Message::Binary(Bytes::from(publish_packet).to_vec())).await?;
+                if let Err(e) = ws_stream.send(Message::Binary(Bytes::from(publish_packet).to_vec())).await {
+                    tracing::error!("Failed to send PUBLISH to WebSocket client {}: {}", sub_id, e);
+                    disconnected_clients.push(sub_id.clone());
+                }
             }
         }
+
+        // Remove disconnected clients
+        for client_id in disconnected_clients {
+            self.remove_client(&client_id);
+        }
+
         Ok(())
     }
 }

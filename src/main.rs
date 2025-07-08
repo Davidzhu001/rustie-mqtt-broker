@@ -27,10 +27,7 @@ async fn main() -> io::Result<()> {
             println!("Client {} unsubscribed from topic {}", client_id, topic);
             Ok(())
         })
-        .with_publish_hook(|topic, payload, version| {
-            println!("Published to topic {} with payload {:?} (version: {:?})", topic, payload, version);
-            Ok(())
-        })
+      
         .with_max_connections(1000);
     let mut broker = Broker::new(config);
     let _ = broker.start().await;

@@ -6,7 +6,7 @@ use tokio::net::TcpStream;
 use tokio::sync::Mutex;
 use tokio::time::{timeout, Duration};
 use tokio_tungstenite::{accept_async};
-use tokio_tungstenite::tungstenite::{Message};
+use tokio_tungstenite::tungstenite::{Message, protocol::CloseFrame};
 use tracing::{error, info, warn};
 use futures_util::stream::StreamExt;
 use futures_util::sink::SinkExt;

@@ -258,13 +258,14 @@ pub async fn handle_unsubscribe<R: AsyncRead + Unpin, W: WriteStream>(
 /// * `data` - The PUBLISH packet data.
 /// * `state` - The shared broker state.
 /// * `version` - The MQTT protocol version.
+/// * `write_stream` - The stream to write PUBACK for QoS 1 (optional, for the publishing client).
 ///
 /// # Returns
 /// Ok on success, or an error on failure.
 pub async fn handle_publish(
     data: &Bytes,
     state: Arc<Mutex<BrokerState>>,
-    version: ProtocolVersion,
+    version: ProtocolVersion
 ) -> Result<(), MqttError> {
     let mut offset = 0;
     let topic = crate::packet::parse_mqtt_string(data, &mut offset)?;
@@ -285,14 +286,23 @@ pub async fn handle_publish(
         crate::packet::parse_properties(data, &mut offset)?;
     }
 
+    // Add this check to prevent the panic
+    if offset > data.len() {
+        return Err(MqttError::Protocol("Offset exceeds packet length".to_string()));
+    }
     let payload = Bytes::from(data[offset..].to_vec());
-
-    let mut state_guard = state.lock().await;
-    if let Some(hook) = state_guard.publish_hook.as_ref() {
-        if let Err(e) = hook(&topic, &payload, version) {
-            tracing::warn!("Publish hook failed for topic {}: {}", topic, e);
+    // Call publish hook without holding the mutex
+    {
+        let state_guard = state.lock().await;
+        if let Some(hook) = state_guard.publish_hook.as_ref() {
+            if let Err(e) = hook(&topic, &payload, version) {
+                tracing::warn!("Publish hook failed for topic {}: {}", topic, e);
+            }
         }
     }
+
+    // Send message without holding the mutex
+    let mut state_guard = state.lock().await;
     state_guard.send_message(topic, payload, version).await?;
 
     Ok(())

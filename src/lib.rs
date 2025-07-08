@@ -10,7 +10,7 @@ use state::BrokerState;
 use tokio::net::TcpListener;
 use tokio::sync::{mpsc, oneshot, Mutex};
 use tokio::time::Duration;
-use tracing::{debug, info};
+use tracing::{debug, info, error};
 use std::sync::Arc;
 
 use crate::protocol::ProtocolVersion;
@@ -123,7 +123,7 @@ pub struct Broker {
 impl Broker {
     /// Creates a new broker instance with the given configuration.
     pub fn new(config: BrokerConfig) -> Self {
-        let (message_tx, mut message_rx) = mpsc::channel(100);
+        let (message_tx, mut message_rx) = mpsc::channel(1000); // Increased capacity
         let state = Arc::new(Mutex::new(BrokerState::new(
             message_tx,
             config.connect_hook.clone(),
@@ -136,9 +136,10 @@ impl Broker {
         tokio::spawn(async move {
             while let Some((topic, payload, version)) = message_rx.recv().await {
                 if let Err(e) = state_clone.lock().await.publish(topic, payload, version).await {
-                    tracing::error!("Failed to publish message: {}", e);
+                    error!("Failed to publish message: {}", e);
                 }
             }
+            info!("Message receiver loop terminated");
         });
         Broker {
             state,
@@ -179,7 +180,7 @@ impl Broker {
                                 tokio::spawn(client::handle_client(stream, state, auth_callback));
                             }
                             Err(e) => {
-                                tracing::error!("Error accepting TCP connection: {}", e);
+                                error!("Error accepting TCP connection: {}", e);
                             }
                         }
                     }
@@ -203,7 +204,7 @@ impl Broker {
                             tokio::spawn(client::handle_ws_client(stream, state, auth_callback));
                         }
                         Err(e) => {
-                            tracing::error!("Error accepting WebSocket connection: {}", e);
+                            error!("Error accepting WebSocket connection: {}", e);
                         }
                     }
                 }
