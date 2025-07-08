@@ -1,4 +1,6 @@
-# Rustie MQTT Broker
+# Rustie MQTT Broker 
+
+## ⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️ Not Ready to use yet!!!
 
 Rustie MQTT Broker is a lightweight, asynchronous MQTT broker implemented in Rust, supporting MQTT versions 3.0, 3.1, 3.1.1, and 5.0 over both TCP and WebSocket connections. It provides customizable hooks for connection, disconnection, subscription, unsubscription, and message publishing events.
 
